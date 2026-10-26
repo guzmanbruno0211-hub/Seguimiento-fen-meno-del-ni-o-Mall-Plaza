@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Alertas ENFEN - Mallplaza</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js para el gráfico interactivo -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Phosphor Icons para iconografía moderna -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            /* Patrón de fondo sutil (Grid) */
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+        
+        /* Scrollbar personalizado */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Efectos Glassmorphism y Animaciones */
+        .glass-panel { 
+            background: rgba(255, 255, 255, 0.9); 
+            backdrop-filter: blur(12px); 
+            -webkit-backdrop-filter: blur(12px); 
+            border: 1px solid rgba(255, 255, 255, 0.8); 
+        }
+        .card-hover { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
+        .card-hover:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); 
+        }
+        .progress-bar { transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 p-4 sm:p-6 lg:p-8 relative selection:bg-rose-500 selection:text-white">
+    
+    <!-- Notificación Toast de Actualización -->
+    <div id="toast" class="fixed top-4 right-4 z-50 flex items-center bg-white border border-emerald-200 shadow-2xl rounded-xl p-4 transition-all duration-300 transform translate-y-[-150%] opacity-0">
+        <i class="ph-fill ph-check-circle text-emerald-500 text-2xl mr-3"></i>
+        <div>
+            <h4 class="font-bold text-slate-900">Datos Sincronizados</h4>
+            <p class="text-sm text-slate-500 font-medium">Información oficial del ENFEN actualizada.</p>
+        </div>
+    </div>
+
+    <!-- Cabecera / Branding -->
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center mb-8 gap-4 glass-panel p-6 sm:p-8 rounded-[2rem] shadow-sm">
+        <div class="flex items-center gap-6 w-full md:w-auto">
+            <!-- Logo Mallplaza -->
+            <img src="https://upload.wikimedia.org/wikipedia/commons/4/41/Logo_Mallplaza.svg" alt="Mallplaza" class="h-10 drop-shadow-sm hover:scale-105 transition-transform">
+            <div class="h-10 w-px bg-slate-300 hidden md:block"></div>
+            <div>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="relative flex h-3 w-3">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                    <span class="text-[10px] font-black text-red-600 uppercase tracking-widest">Alerta ENFEN Activa</span>
+                </div>
+                <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Monitor de Riesgos</h1>
+            </div>
+        </div>
+        <div class="flex flex-col items-end w-full md:w-auto">
+            <button id="update-btn" class="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-rose-500/20 bg-gradient-to-r from-rose-600 to-pink-500 hover:from-rose-500 hover:to-pink-400 text-white hover:-translate-y-0.5">
+                <i id="update-icon" class="ph ph-arrows-clockwise text-xl"></i>
+                <span id="update-text">Actualizar Data</span>
+            </button>
+            <span class="text-xs text-slate-500 mt-2 font-medium">Último reporte: <span class="font-bold text-slate-700" id="fecha-actualizacion">26 Oct 2026</span></span>
+        </div>
+    </div>
+
+    <!-- Contenido Principal: Gráfico y Timeline -->
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <!-- Gráfico Chart.js -->
+        <div class="lg:col-span-2 glass-panel p-6 sm:p-8 rounded-[2rem] shadow-sm">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h2 class="text-xl font-black text-slate-900">Evolución Fenómeno El Niño (1+2)</h2>
+                    <p class="text-sm text-slate-500 font-medium mt-1">Probabilidades proyectadas hacia 2027</p>
+                </div>
+                <div class="p-2 bg-slate-100 rounded-lg text-slate-500"><i class="ph-fill ph-trend-up text-xl"></i></div>
+            </div>
+            <div class="h-[300px] w-full relative">
+                <canvas id="evolutionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Timeline Comunicados -->
+        <div class="glass-panel p-6 sm:p-8 rounded-[2rem] shadow-sm flex flex-col h-[400px] lg:h-auto">
+            <h2 class="text-xl font-black text-slate-900 mb-6">Últimos Comunicados</h2>
+            <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-6 relative">
+                <div class="absolute left-2.5 top-2 bottom-2 w-0.5 bg-slate-200"></div>
+                <!-- Com 18 -->
+                <div class="relative pl-8">
+                    <div class="absolute left-0 top-1 w-5 h-5 rounded-full border-4 border-rose-200 bg-rose-600 shadow-sm animate-pulse"></div>
+                    <h3 class="font-bold text-slate-900">Comunicado N° 18-2026</h3>
+                    <p class="text-xs text-slate-400 font-medium mb-1">16 Octubre 2026</p>
+                    <p class="text-sm text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-medium">Magnitud <strong class="text-rose-600">Extraordinaria</strong> proyectada hasta enero 2027.</p>
+                </div>
+                <!-- Com 17 -->
+                <div class="relative pl-8">
+                    <div class="absolute left-[3px] top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white bg-slate-400 shadow-sm"></div>
+                    <h3 class="font-bold text-slate-700">Comunicado N° 17-2026</h3>
+                    <p class="text-xs text-slate-400 font-medium mb-1">28 Septiembre 2026</p>
+                    <p class="text-sm text-slate-500 line-clamp-2">Lluvias superiores a lo normal en costa norte y central.</p>
+                </div>
+                <!-- Com 16 -->
+                <div class="relative pl-8">
+                    <div class="absolute left-[3px] top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white bg-slate-400 shadow-sm"></div>
+                    <h3 class="font-bold text-slate-700">Comunicado N° 16-2026</h3>
+                    <p class="text-xs text-slate-400 font-medium mb-1">14 Septiembre 2026</p>
+                    <p class="text-sm text-slate-500 line-clamp-2">Ríos en el norte con caudales sobre lo normal.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Centros Comerciales (Matriz de Riesgo) -->
+    <div class="max-w-7xl mx-auto glass-panel p-6 sm:p-8 rounded-[2rem] shadow-sm mb-12">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-slate-200/60 pb-6">
+            <div>
+                <h2 class="text-2xl font-black text-slate-900 flex items-center gap-2">
+                    <i class="ph-fill ph-map-trifold text-rose-600"></i> Matriz Operativa de Sedes
+                </h2>
+                <span class="text-sm text-slate-500 font-medium mt-1 block">Gestión ISEG / G4S ante impacto climático (Lluvias y Desbordes).</span>
+            </div>
+            
+            <!-- Botones de Filtro -->
+            <div class="flex bg-slate-200/50 p-1.5 rounded-xl gap-1 overflow-x-auto w-full md:w-auto shadow-inner">
+                <button onclick="filterMalls('Todos')" class="filter-btn active px-5 py-2 text-sm font-bold rounded-lg bg-white shadow-sm text-slate-800 transition-all" data-filter="Todos">Todas</button>
+                <button onclick="filterMalls('Alto')" class="filter-btn px-5 py-2 text-sm font-bold rounded-lg text-slate-500 hover:text-slate-800 hover:bg-white/50 transition-all" data-filter="Alto">Riesgo Alto</button>
+                <button onclick="filterMalls('Medio')" class="filter-btn px-5 py-2 text-sm font-bold rounded-lg text-slate-500 hover:text-slate-800 hover:bg-white/50 transition-all" data-filter="Medio">Riesgo Medio</button>
+                <button onclick="filterMalls('Bajo')" class="filter-btn px-5 py-2 text-sm font-bold rounded-lg text-slate-500 hover:text-slate-800 hover:bg-white/50 transition-all" data-filter="Bajo">Riesgo Bajo</button>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5" id="malls-container">
+            <!-- Renderizado dinámico por JavaScript -->
+        </div>
+    </div>
+
+    <!-- Modal Lúdico de Detalle de Sede -->
+    <div id="mall-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300 p-4">
+        <div class="bg-white w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden transform scale-95 transition-all duration-300 relative" id="modal-content-box">
+            
+            <!-- Cabecera del Modal -->
+            <div class="p-6 md:p-8 relative overflow-hidden bg-slate-900 text-white">
+                <div class="absolute -right-10 -top-10 opacity-10">
+                    <i class="ph-fill ph-buildings text-[12rem]"></i>
+                </div>
+                <div class="relative z-10 flex justify-between items-start">
+                    <div>
+                        <div id="modal-risk-badge" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-black rounded-full mb-3 uppercase tracking-widest bg-white/20 text-white backdrop-blur-md"></div>
+                        <h3 id="modal-title" class="text-3xl font-black tracking-tight mb-1">Nombre Sede</h3>
+                        <p id="modal-region" class="text-sm font-medium text-slate-300 flex items-center gap-1.5"><i class="ph-fill ph-map-pin"></i> Región</p>
+                    </div>
+                    <button onclick="closeModal()" class="p-2 bg-white/10 rounded-full hover:bg-white/20 hover:scale-110 transition-all backdrop-blur-md">
+                        <i class="ph font-bold ph-x text-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Cuerpo del Modal -->
+            <div class="p-6 md:p-8 space-y-6 bg-slate-50">
+                
+                <!-- Alerta Histórica (Quebradas/Desbordes) -->
+                <div class="bg-white p-5 rounded-2xl border-l-4 border-red-500 shadow-sm">
+                    <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                        <i class="ph-fill ph-warning-circle text-red-500 text-lg"></i> Alerta Histórica y Riesgo Principal
+                    </h4>
+                    <p id="modal-impact" class="text-slate-800 font-bold text-lg leading-tight"></p>
+                </div>
+
+                <!-- Medidores Lúdicos -->
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- Termómetro (Temperatura) -->
+                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <div class="p-2 bg-orange-50 text-orange-500 rounded-xl"><i class="ph-fill ph-thermometer text-2xl"></i></div>
+                            <span id="modal-temp-text" class="text-2xl font-black text-slate-800">0°C</span>
+                        </div>
+                        <p class="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Temp. Máx Prevista</p>
+                        <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div id="modal-temp-bar" class="bg-gradient-to-r from-orange-400 to-red-500 h-full rounded-full progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <!-- Lluvias / Desborde -->
+                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <div class="p-2 bg-blue-50 text-blue-500 rounded-xl"><i class="ph-fill ph-cloud-rain text-2xl"></i></div>
+                            <span id="modal-rain-text" class="text-2xl font-black text-slate-800">0%</span>
+                        </div>
+                        <p class="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Prob. Lluvia / Desborde</p>
+                        <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div id="modal-rain-bar" class="bg-gradient-to-r from-blue-400 to-blue-600 h-full rounded-full progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Plan de Acción -->
+                <div class="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="text-xs font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2">
+                            <i class="ph-fill ph-shield-check text-lg"></i> Plan de Acción y Preparación
+                        </h4>
+                        <span id="modal-prep-text" class="text-sm font-black text-emerald-600 bg-emerald-100 px-2 py-1 rounded-md">0%</span>
+                    </div>
+                    <div class="w-full bg-emerald-200/50 rounded-full h-1.5 mb-4 overflow-hidden">
+                        <div id="modal-prep-bar" class="bg-emerald-500 h-full rounded-full progress-bar" style="width: 0%"></div>
+                    </div>
+                    <p id="modal-action" class="text-sm text-slate-700 font-medium leading-relaxed"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. DATA DEL GRÁFICO (Basado en los comunicados ENFEN)
+        const comunicadosData = [
+            { id: '10', probFuerte: 20, probExtra: 0 },
+            { id: '11', probFuerte: 48, probExtra: 5 },
+            { id: '12', probFuerte: 52, probExtra: 10 },
+            { id: '13', probFuerte: 55, probExtra: 15 },
+            { id: '14', probFuerte: 43, probExtra: 41 },
+            { id: '15', probFuerte: 40, probExtra: 43 },
+            { id: '16', probFuerte: 45, probExtra: 48 },
+            { id: '17', probFuerte: 30, probExtra: 65 },
+            { id: '18', probFuerte: 20, probExtra: 80 },
+        ];
+
+        // 2. DATA DE SEDES (Iseg y G4S con historial de quebradas)
+        const sedesData = [
+            // Operador: Iseg
+            { id: 1, oper: 'Iseg', nombre: 'Comas', region: 'Lima Norte', riesgo: 'Alto', impacto: 'Posible activación y desborde de Quebrada Collique. Aniegos severos en vías de acceso.', temp: 31, lluvia: 75, prep: 60, accion: 'Asegurar bombas de achique, colocar sacos de arena en ingresos perimetrales subterráneos.' },
+            { id: 2, oper: 'Iseg', nombre: 'Bellavista', region: 'Callao', riesgo: 'Medio', impacto: 'Aniegos por falta de drenaje pluvial metropolitano. Riesgo eléctrico leve.', temp: 29, lluvia: 45, prep: 75, accion: 'Limpieza preventiva de techos ligeros y mantenimiento de sumideros internos.' },
+            { id: 3, oper: 'Iseg', nombre: 'Arequipa', region: 'Sierra Sur', riesgo: 'Medio', impacto: 'Posible activación de torrenteras cercanas (San Lázaro/Venezuela) por lluvias de trasvase.', temp: 26, lluvia: 50, prep: 80, accion: 'Refuerzo de muros de contención perimetrales y simulacros de evacuación de sótanos.' },
+            { id: 4, oper: 'Iseg', nombre: 'Trujillo', region: 'Costa Norte', riesgo: 'Alto', impacto: 'Riesgo crítico por desborde histórico de Quebrada San Ildefonso afectando casco urbano.', temp: 34, lluvia: 95, prep: 45, accion: 'Plan de contingencia máximo. Instalación de compuertas anti-inundación y sellado de puertas.' },
+            { id: 5, oper: 'Iseg', nombre: 'Huancayo', region: 'Sierra Centro', riesgo: 'Bajo', impacto: 'Lluvias moderadas aisladas. Posibles filtraciones en coberturas.', temp: 23, lluvia: 35, prep: 90, accion: 'Mantenimiento preventivo estándar de infraestructura y canaletas de techos.' },
+            { id: 6, oper: 'Iseg', nombre: 'Piura', region: 'Costa Norte', riesgo: 'Alto', impacto: 'Alta probabilidad de inundación por desborde del Río Piura y formación de cuencas ciegas.', temp: 37, lluvia: 98, prep: 40, accion: 'Reubicación inmediata de mercadería a nivel superior. Protocolo de suspensión operativa.' },
+            { id: 7, oper: 'Iseg', nombre: 'Angamos', region: 'Lima Centro', riesgo: 'Bajo', impacto: 'Temperaturas anómalas altas. Riesgo de estrés térmico en equipos y personal.', temp: 31, lluvia: 10, prep: 95, accion: 'Maximizar capacidad y mantenimiento de equipos HVAC (Aire Acondicionado) y cadena de frío.' },
+            { id: 8, oper: 'Iseg', nombre: 'Atocongo', region: 'Lima Sur', riesgo: 'Bajo', impacto: 'Lloviznas anómalas de verano. Riesgo leve en tableros eléctricos expuestos.', temp: 30, lluvia: 15, prep: 85, accion: 'Inspección minuciosa de cableado expuesto y sellado de tableros eléctricos exteriores.' },
+            
+            // Operador: G4S
+            { id: 9, oper: 'G4S', nombre: 'Huánuco', region: 'Sierra/Selva', riesgo: 'Medio', impacto: 'Deslizamientos y huaicos en laderas que podrían bloquear vías de abastecimiento.', temp: 28, lluvia: 60, prep: 70, accion: 'Asegurar stock logístico de emergencia. Monitoreo constante de laderas circundantes.' },
+            { id: 10, oper: 'G4S', nombre: 'Trujillo Los Jardines', region: 'Costa Norte', riesgo: 'Alto', impacto: 'Impacto inminente por activación de Quebrada El León y escorrentías urbanas.', temp: 34, lluvia: 92, prep: 50, accion: 'Cerco perimetral con costales terreros. Desvío programado de aguas pluviales.' },
+            { id: 11, oper: 'G4S', nombre: 'Cajamarca', region: 'Sierra Norte', riesgo: 'Medio', impacto: 'Lluvias intensas sobre techados estructurales. Colapso de drenajes urbanos.', temp: 24, lluvia: 70, prep: 65, accion: 'Impermeabilización urgente de zonas vulnerables y limpieza profunda de canaletas.' },
+            { id: 12, oper: 'G4S', nombre: 'Canta Callao', region: 'Lima Norte', riesgo: 'Alto', impacto: 'Peligro de desborde del río Chillón afectando vías aledañas y aniegos severos.', temp: 31, lluvia: 80, prep: 55, accion: 'Aislamiento de bóvedas subterráneas. Simulación de protocolo de corte de energía general.' },
+            { id: 13, oper: 'G4S', nombre: 'La Marina', region: 'Lima Centro', riesgo: 'Bajo', impacto: 'Altas temperaturas prolongadas e incremento de sensación térmica.', temp: 30, lluvia: 12, prep: 95, accion: 'Incremento de rondas de prevención médica e hidratación para personal y clientes.' },
+            { id: 14, oper: 'G4S', nombre: 'Pucallpa', region: 'Amazonía', riesgo: 'Medio', impacto: 'Déficit hídrico inicial seguido de olas de calor extremo (hasta 38°C).', temp: 38, lluvia: 20, prep: 75, accion: 'Refuerzo de protocolos de prevención de incendios y asegurar reservas de agua potable.' },
+            { id: 15, oper: 'G4S', nombre: 'Chiclayo', region: 'Costa Norte', riesgo: 'Alto', impacto: 'Inundación severa por lluvias extremas y riesgo de desborde del río La Leche.', temp: 35, lluvia: 96, prep: 45, accion: 'Preparación para evacuación preventiva. Sistemas de bombeo ininterrumpido a combustible listos.' }
+        ];
+
+        // 3. RENDERIZADO DEL GRÁFICO (Chart.js)
+        const ctx = document.getElementById('evolutionChart').getContext('2d');
+        
+        // Gradientes para relleno bajo la línea
+        const gradFuerte = ctx.createLinearGradient(0, 0, 0, 300);
+        gradFuerte.addColorStop(0, 'rgba(249, 115, 22, 0.3)');
+        gradFuerte.addColorStop(1, 'rgba(249, 115, 22, 0.0)');
+        
+        const gradExtra = ctx.createLinearGradient(0, 0, 0, 300);
+        gradExtra.addColorStop(0, 'rgba(225, 29, 72, 0.3)');
+        gradExtra.addColorStop(1, 'rgba(225, 29, 72, 0.0)');
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: comunicadosData.map(d => `Com. ${d.id}`),
+                datasets: [
+                    {
+                        label: 'Prob. Magnitud Fuerte (%)',
+                        data: comunicadosData.map(d => d.probFuerte),
+                        borderColor: '#f97316', 
+                        backgroundColor: gradFuerte,
+                        fill: true, tension: 0.4, borderWidth: 3, pointRadius: 4, pointBackgroundColor: '#fff'
+                    },
+                    {
+                        label: 'Prob. Magnitud Extraordinaria (%)',
+                        data: comunicadosData.map(d => d.probExtra),
+                        borderColor: '#e11d48', 
+                        backgroundColor: gradExtra,
+                        fill: true, tension: 0.4, borderWidth: 3, pointRadius: 4, pointBackgroundColor: '#fff'
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8, font: {family: 'Inter', weight: 'bold'} } },
+                    tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.9)', titleFont: {family: 'Inter'}, bodyFont: {family: 'Inter'}, padding: 12, cornerRadius: 8 }
+                },
+                scales: {
+                    y: { beginAtZero: true, max: 100, border: {display: false}, grid: {color: '#e2e8f0'} },
+                    x: { border: {display: false}, grid: {display: false} }
+                }
+            }
+        });
+
+        // 4. LÓGICA DE TARJETAS (SEDES) Y FILTROS
+        const getStyles = (riesgo) => {
+            switch (riesgo) {
+                case 'Alto': return { border: 'border-red-200', text: 'text-red-700', badge: 'bg-red-500 text-white', icon: 'ph-warning-octagon' };
+                case 'Medio': return { border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-500 text-white', icon: 'ph-warning' };
+                case 'Bajo': return { border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-500 text-white', icon: 'ph-check-circle' };
+                default: return { border: 'border-slate-200', text: 'text-slate-700', badge: 'bg-slate-500 text-white', icon: 'ph-info' };
+            }
+        };
+
+        const mallsContainer = document.getElementById('malls-container');
+        
+        const renderMalls = (filter = 'Todos') => {
+            mallsContainer.innerHTML = '';
+            const filtered = filter === 'Todos' ? sedesData : sedesData.filter(cc => cc.riesgo === filter);
+            
+            filtered.forEach((cc, i) => {
+                const styles = getStyles(cc.riesgo);
+                mallsContainer.innerHTML += `
+                    <div onclick="openModal(${cc.id})" class="card-hover bg-white border ${styles.border} rounded-2xl p-5 flex flex-col justify-between animate-fade-in shadow-sm" style="animation-delay: ${i * 30}ms; opacity:0;">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded">${cc.oper}</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded flex items-center gap-1 font-bold shadow-sm ${styles.badge}">
+                                    <i class="ph-fill ${styles.icon}"></i> Riesgo ${cc.riesgo}
+                                </span>
+                            </div>
+                            <h3 class="font-black text-slate-900 text-lg leading-tight mb-2">${cc.nombre}</h3>
+                            <p class="text-xs text-slate-500 font-medium line-clamp-3 mb-4">${cc.impacto}</p>
+                        </div>
+                        <div class="flex justify-between items-center pt-3 border-t border-slate-100">
+                            <span class="text-xs font-bold text-slate-400 flex items-center gap-1"><i class="ph-fill ph-map-pin text-rose-500 text-lg"></i> ${cc.region}</span>
+                        </div>
+                    </div>
+                `;
+            });
+        };
+
+        // Función global para filtrar llamadas desde el HTML
+        window.filterMalls = (riesgo) => {
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if(btn.dataset.filter === riesgo) {
+                    btn.className = "filter-btn active px-5 py-2 text-sm font-bold rounded-lg bg-white shadow-sm text-slate-800 transition-all";
+                } else {
+                    btn.className = "filter-btn px-5 py-2 text-sm font-bold rounded-lg text-slate-500 hover:text-slate-800 hover:bg-white/50 transition-all";
+                }
+            });
+            renderMalls(riesgo);
+        };
+
+        // Inicializar Render
+        renderMalls();
+
+        // 5. LÓGICA DEL MODAL LÚDICO
+        const modal = document.getElementById('mall-modal');
+        const modalBox = document.getElementById('modal-content-box');
+
+        window.openModal = (id) => {
+            const cc = sedesData.find(c => c.id === id);
+            if(!cc) return;
+
+            // Llenar Contenido de Textos
+            document.getElementById('modal-title').innerText = `${cc.oper} ${cc.nombre}`;
+            document.getElementById('modal-region').innerHTML = `<i class="ph-fill ph-map-pin"></i> ${cc.region}`;
+            document.getElementById('modal-impact').innerText = cc.impacto;
+            document.getElementById('modal-action').innerText = cc.accion;
+            
+            // Badge Riesgo Modal
+            const badge = document.getElementById('modal-risk-badge');
+            const styles = getStyles(cc.riesgo);
+            badge.innerHTML = `<i class="ph-fill ${styles.icon}"></i> Riesgo ${cc.riesgo}`;
+            
+            if(cc.riesgo === 'Alto') badge.className = "inline-flex items-center gap-1.5 px-3 py-1 text-xs font-black rounded-full mb-3 uppercase tracking-widest bg-red-500 text-white shadow-lg shadow-red-500/30";
+            if(cc.riesgo === 'Medio') badge.className = "inline-flex items-center gap-1.5 px-3 py-1 text-xs font-black rounded-full mb-3 uppercase tracking-widest bg-orange-500 text-white shadow-lg shadow-orange-500/30";
+            if(cc.riesgo === 'Bajo') badge.className = "inline-flex items-center gap-1.5 px-3 py-1 text-xs font-black rounded-full mb-3 uppercase tracking-widest bg-emerald-500 text-white shadow-lg shadow-emerald-500/30";
+
+            // Reiniciar Anchos de Barra
+            document.getElementById('modal-temp-bar').style.width = '0%';
+            document.getElementById('modal-rain-bar').style.width = '0%';
+            document.getElementById('modal-prep-bar').style.width = '0%';
+
+            // Actualizar Textos Numéricos
+            document.getElementById('modal-temp-text').innerText = `${cc.temp}°C`;
+            document.getElementById('modal-rain-text').innerText = `${cc.lluvia}%`;
+            document.getElementById('modal-prep-text').innerText = `${cc.prep}%`;
+
+            // Establecer color de barra de preparación basado en porcentaje
+            const prepBar = document.getElementById('modal-prep-bar');
+            if(cc.prep < 50) prepBar.className = "bg-red-500 h-full rounded-full progress-bar";
+            else if(cc.prep < 80) prepBar.className = "bg-orange-500 h-full rounded-full progress-bar";
+            else prepBar.className = "bg-emerald-500 h-full rounded-full progress-bar";
+
+            // Mostrar el Modal y Animar
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalBox.classList.remove('scale-95');
+                modalBox.classList.add('scale-100');
+                
+                // Animación de barras fluidas (Temp simulada sobre máx 45C)
+                document.getElementById('modal-temp-bar').style.width = `${(cc.temp / 45) * 100}%`;
+                document.getElementById('modal-rain-bar').style.width = `${cc.lluvia}%`;
+                document.getElementById('modal-prep-bar').style.width = `${cc.prep}%`;
+            }, 10);
+        };
+
+        window.closeModal = () => {
+            modal.classList.add('opacity-0');
+            modalBox.classList.remove('scale-100');
+            modalBox.classList.add('scale-95');
+            setTimeout(() => { modal.classList.add('hidden'); }, 300);
+        };
+
+        // Cerrar haciendo clic fuera
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+        // 6. BOTÓN SINCRONIZAR DATOS
+        const updateBtn = document.getElementById('update-btn');
+        const updateIcon = document.getElementById('update-icon');
+        const updateText = document.getElementById('update-text');
+        const toast = document.getElementById('toast');
+        const dateText = document.getElementById('fecha-actualizacion');
+
+        updateBtn.addEventListener('click', () => {
+            updateBtn.disabled = true;
+            updateIcon.classList.add('animate-spin');
+            updateText.innerText = 'Sincronizando...';
+            updateBtn.classList.replace('from-rose-600', 'from-slate-400');
+            updateBtn.classList.replace('to-pink-500', 'to-slate-500');
+
+            setTimeout(() => {
+                updateBtn.disabled = false;
+                updateIcon.classList.remove('animate-spin');
+                updateText.innerText = 'Actualizar Data';
+                updateBtn.classList.replace('from-slate-400', 'from-rose-600');
+                updateBtn.classList.replace('to-slate-500', 'to-pink-500');
+
+                // Fecha actual
+                const hoy = new Date();
+                const op = { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+                dateText.innerText = hoy.toLocaleDateString('es-ES', op);
+
+                // Mostrar Toast
+                toast.classList.remove('translate-y-[-150%]', 'opacity-0');
+                setTimeout(() => { toast.classList.add('translate-y-[-150%]', 'opacity-0'); }, 3000);
+            }, 1500);
+        });
+    </script>
+</body>
+</html>
